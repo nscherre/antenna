@@ -1,0 +1,10 @@
+pyproject.toml
+src/antenna/__init__.py
+src/antenna/halfwave_dipole.py
+src/antenna/spherical.py
+src/antenna/test.py
+src/antenna.egg-info/PKG-INFO
+src/antenna.egg-info/SOURCES.txt
+src/antenna.egg-info/dependency_links.txt
+src/antenna.egg-info/requires.txt
+src/antenna.egg-info/top_level.txt
