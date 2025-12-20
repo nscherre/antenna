@@ -1,119 +1,228 @@
+from __future__ import annotations
 from dataclasses import dataclass
+from typing import overload
 import math
 
 
-@dataclass(frozen=True, init=False)
-class sphpoint:
+@dataclass(frozen=True)
+class Point3CartesianData:
     x: float
     y: float
     z: float
-    R: float
+
+    @staticmethod
+    def zero() -> Point3CartesianData:
+        return Point3CartesianData(0, 0, 0)
+
+
+@dataclass(frozen=True)
+class Point3SphericalData:
     r: float
     theta: float
     phi: float
 
-    def __init__(self, **kwargs):
+    @staticmethod
+    def zero() -> Point3SphericalData:
+        return Point3SphericalData(0, 0, 0)
+
+
+class Point3:
+    @overload
+    def __init__(self, x: float, y: float, z: float) -> None: ...
+
+    @overload
+    def __init__(self, r: float, theta: float, phi: float) -> None: ...
+
+    @overload
+    def __init__(self) -> None: ...
+
+    def __init__(self, *args, **kwargs) -> None:
+        self._cartesian: Point3CartesianData | None = None
+        self._spherical: Point3SphericalData | None = None
+
         keys = set(kwargs.keys())
 
-        # Cartesian
-        if {"x", "y", "z"} <= keys:
-            # Assign Cartesian
-            x = kwargs["x"]
-            y = kwargs["y"]
-            z = kwargs["z"]
-            
-            # Assign Cylindrical
-            phi = math.atan(y/x)
-            r = math.sqrt(x**2 + y**2)
-            
-            # Assign Spherical
-            R = math.sqrt(r**2 + z**2)
-            theta = math.atan(r/z)
-            
-
-        # Cylindrical
-        elif {"r", "phi", "z"} <= keys:
-            r = kwargs["r"]
-            phi = kwargs["phi"]
-            z = kwargs["z"]
-
-            if r < 0:
-                raise ValueError("r must be non-negative")
-
-            # Assign Cartesian
-            x = r * math.cos(theta)
-            y = r * math.sin(theta)
-            
-            # Assign Spherical
-            R = math.sqrt(r**2 + z**2)
-            theta = math.atan(r/z)
-            
-        # Spherical
-        elif {"R", "theta", "phi"} <= keys:
-            R = kwargs["R"]
-            theta = kwargs["theta"]
-            phi = kwargs["phi"]
-
-            if R < 0:
-                raise ValueError("R must be non-negative")
-
-            # Assign Cartesian
-            x = R * math.sin(theta) * math.cos(phi)
-            y = R * math.sin(theta) * math.sin(phi)
-            z = R * math.cos(theta)
-            
-            # Assign Cylindrical
-            r = math.sqrt(x**2 + y**2)
-
-        else:
-            raise TypeError(
-                "Invalid constructor arguments. "
-                "Use (x,y,z), (r,theta,z), or (R,theta,phi)."
+        # Overload 2
+        if {"r", "theta", "phi"} <= keys:
+            self._spherical: Point3SphericalData | None = Point3SphericalData(
+                r=kwargs.get("r"),
+                theta=kwargs.get("theta"),
+                phi=kwargs.get("phi"),
             )
 
-        if R == 0:
-            theta = 0.0
-            phi = 0.0
+        # Overload 1
+        elif {"x", "y", "z"} <= keys:
+            self._cartesian = Point3CartesianData(
+                kwargs.get("x"), kwargs.get("y"), kwargs.get("z")
+            )
+
+        # Positional Args -> Cartesian
+        elif len(args) == 3:
+            self._cartesian = Point3CartesianData(args[0], args[1], args[2])
+
+        # Zeros constructor
+        elif len(args) == 0:
+            self._cartesian = Point3CartesianData.zero()
+
         else:
-            theta = math.acos(z / R)
-            phi = math.atan2(y, x) % (2 * math.pi)
+            raise ValueError("No constructor signatures match the arguments provided.")
 
-        # Validation
-        if not (0.0 <= theta <= math.pi):
-            raise ValueError("theta must be in [0, pi]")
-        if not (0.0 <= phi < 2 * math.pi):
-            raise ValueError("phi must be in [0, 2*pi)")
+    def _generate_cartesian(self):
+        if self._cartesian:
+            return
 
-        # Assign (bypassing frozen=True)
-        object.__setattr__(self, "x", x)
-        object.__setattr__(self, "y", y)
-        object.__setattr__(self, "z", z)
-        object.__setattr__(self, "r", r)
-        object.__setattr__(self, "R", R)
-        object.__setattr__(self, "theta", theta)
-        object.__setattr__(self, "phi", phi)
+        if self._spherical:
+            x = (
+                self._spherical.r
+                * math.cos(self._spherical.phi)
+                * math.cos(self._spherical.theta)
+            )
+            y = (
+                self._spherical.r
+                * math.cos(self._spherical.phi)
+                * math.sin(self._spherical.theta)
+            )
+            z = self._spherical.r * math.sin(self._spherical.phi)
+            self._cartesian = Point3CartesianData(x, y, z)
+        else:
+            self._cartesian = Point3CartesianData.zero()
 
-    def __repr__(self) -> str:
-        return (
-            f"sphpoint("
-            f"x={self.x:.6g}, y={self.y:.6g}, z={self.z:.6g}, "
-            f"R={self.R:.6g}, r={self.r:.6g}, "
-            f"theta={self.theta:.6g}, phi={self.phi:.6g})"
+    def _generate_spherical(self):
+        if self._spherical:
+            return
+
+        if self._cartesian:
+            x = self._cartesian.x
+            y = self._cartesian.y
+            z = self._cartesian.z
+
+            r_xy = math.hypot(x, y)
+            r = math.hypot(r_xy, z)
+
+            if r == 0.0:
+                theta = 0.0
+                phi = 0.0
+            else:
+                theta = math.atan2(y, x) % (2 * math.pi)
+                phi = math.atan2(z, r_xy)
+
+            self._spherical = Point3SphericalData(r=r, theta=theta, phi=phi)
+        else:
+            self._spherical = Point3SphericalData.zero()
+
+    @property
+    def x(self) -> float:
+        if not self._cartesian:
+            self._generate_cartesian()
+
+        return self._cartesian.x
+
+    @property
+    def y(self) -> float:
+        if not self._cartesian:
+            self._generate_cartesian()
+
+        return self._cartesian.y
+
+    @property
+    def z(self) -> float:
+        if not self._cartesian:
+            self._generate_cartesian()
+
+        return self._cartesian.z
+
+    @property
+    def r(self) -> float:
+        if not self._spherical:
+            self._generate_spherical()
+
+        return self._spherical.r
+
+    @property
+    def theta(self) -> float:
+        if not self._spherical:
+            self._generate_spherical()
+
+        return self._spherical.theta
+
+    @property
+    def phi(self) -> float:
+        if not self._spherical:
+            self._generate_spherical()
+
+        return self._spherical.phi
+
+    def __hash__(self):
+        return hash(self.x) + hash(self.y) + hash(self.z)
+
+    @classmethod
+    def from_cartesian(cls, x: float, y: float, z: float) -> Point3:
+        return cls(x=x, y=y, z=z)
+
+    @classmethod
+    def from_spherical(
+        cls, r: float, theta: float, phi: float, center: Point3 | None = None
+    ) -> Point3:
+        center = center or Point3(0, 0, 0)
+        return cls(r=r, theta=theta, phi=phi)
+
+    def clone(self) -> Point3:
+        if self._cartesian or not self._spherical:
+            return Point3(x=self.x, y=self.y, z=self.z)
+        else:
+            return Point3(r=self.r, theta=self.theta, phi=self.phi)
+
+    def __add__(self, other: Point3) -> Point3:
+        return Point3(
+            x=self.x + other.x,
+            y=self.y + other.y,
+            z=self.z + other.z,
         )
 
- 
-@dataclass(frozen=True)
-class sphvec:
-    r: complex = 0.0 + 0.0j
-    theta: complex = 0.0 + 0.0j
-    phi: complex = 0.0 + 0.0j
+    def __sub__(self, other: Point3) -> Point3:
+        return Point3(
+            x=self.x - other.x,
+            y=self.y - other.y,
+            z=self.z - other.z,
+        )
 
-    def magnitude(self) -> float:
-        return abs(self.r)**2 + abs(self.theta)**2 + abs(self.phi)**2
+    def __mul__(self, other: Point3 | float) -> Point3:
+        if isinstance(other, Point3):
+            return Point3(
+                x=self.x * other.x,
+                y=self.y * other.y,
+                z=self.z * other.z,
+            )
+        if self._spherical:
+            return Point3(
+                r=self._spherical.r * other,
+                theta=self._spherical.theta,
+                phi=self._spherical.phi,
+            )
+        return Point3(
+            x=self.x * other,
+            y=self.y * other,
+            z=self.z * other,
+        )
 
-    def __repr__(self) -> str:
-        return (
-            f"sphvec(Vr={self.r}, "
-            f"Vtheta={self.theta}, "
-            f"Vphi={self.phi})"
-        )       
+    def __truediv__(self, other: Point3 | float) -> Point3:
+        if isinstance(other, Point3):
+            return Point3(
+                x=self.x / other.x,
+                y=self.y / other.y,
+                z=self.z / other.z,
+            )
+        if self._spherical:
+            return Point3(
+                r=self._spherical.r / other,
+                theta=self._spherical.theta,
+                phi=self._spherical.phi,
+            )
+        return Point3(
+            x=self.x / other,
+            y=self.y / other,
+            z=self.z / other,
+        )
+
+    def __div__(self, other: Point3 | float) -> Point3:
+        return self.__truediv__(other)

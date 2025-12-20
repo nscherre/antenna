@@ -7,3 +7,4 @@ src/antenna.egg-info/SOURCES.txt
 src/antenna.egg-info/dependency_links.txt
 src/antenna.egg-info/requires.txt
 src/antenna.egg-info/top_level.txt
+test/test_point3.py

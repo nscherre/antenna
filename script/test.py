@@ -1,4 +1,4 @@
-from antenna.spherical import sphpoint
+from antenna.spherical import Point3
 from antenna.halfwave_dipole import halfwave_dipole_E
 import math
 import numpy as np
@@ -6,8 +6,8 @@ import matplotlib.pyplot as plt
 
 
 # Dipole / wave parameters
-I0 = 1.0 + 0.0j        # feed current (phasor)
-lam = 1.0             # wavelength (meters)
+I0 = 1.0 + 0.0j  # feed current (phasor)
+lam = 1.0  # wavelength (meters)
 k = 2 * math.pi / lam
 
 # Observation radius (far-field)
@@ -19,7 +19,8 @@ theta = np.linspace(1e-3, math.pi - 1e-3, 1000)
 E_mag = np.zeros_like(theta)
 
 for i, th in enumerate(theta):
-    p = sphpoint(r=r, theta=th, phi=0.0)
+    # th is the polar angle from +z axis
+    p = Point3(x=r * math.sin(th), y=0.0, z=r * math.cos(th))
     E = halfwave_dipole_E(p, I0, k)
     E_mag[i] = abs(E.theta)
 
